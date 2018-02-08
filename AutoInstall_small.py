@@ -33,7 +33,7 @@ CPUCores='1' if getoutput("lscpu|grep '^CPU(s)'|awk '{print $2}'")=='1' else get
 
 AppInstalledState={}   ###已经成功安装的软件名称会存放在这里###
 
-WikiURL='http://t.cn/RQa5Ark'         #### WIKI 部署文档短地址   ##
+WikiURL='http://mrw.so/wlOH7'         #### WIKI 部署文档短地址   ##
 
 def checkRootPrivilege():
 ###  检查脚本的当前运行用户是否是 ROOT ###
@@ -71,7 +71,7 @@ def checkCompilerState():
           print (TextColorRed+InternetState['Description']+' 程序退出!'+TextColorWhite)
           exit(1)
        print (TextColorGreen+InternetState['Description']+TextColorWhite)
-       if subprocess.call('yum install -y gcc gc-c++',shell=True):
+       if subprocess.call('yum install -y gcc gcc-c++',shell=True):
            print (TextColorRed+'联网安装GCC,C++ 编译器失败！程序退出!')
            exit(1)
     print (TextColorGreen+'GCC,C++ 编译器已经安装成功!'+TextColorWhite)
@@ -399,7 +399,7 @@ def installElasticsearch():
     if not path.isdir(r'/TRS/APP'):
        subprocess.call('mkdir -p /TRS/APP/',shell=True)
 
-    if path.exists(r'/TRS/APP/elastisearch'):
+    if path.exists(r'/TRS/APP/elasticsearch'):
        print (TextColorRed+'检测到/TRS/APP 目录下已经存在一个名为"elasticsearch"的文件或目录，')
        print (TextColorRed+'请删除或对其进行重命名，并重新运行该工具。')
        print (TextColorRed+'Elasticsearch 安装失败，程序退出!'+TextColorWhite)
@@ -407,10 +407,10 @@ def installElasticsearch():
        exit(1)
 
     subprocess.call('tar -C /TRS/APP -xvzf install_package/elasticsearch-5.5.0.tar.gz',shell=True)
-    rename(r'/TRS/APP/elasticsearch-5.5.0',r'/TRS/APP/elastisearch')
+    rename(r'/TRS/APP/elasticsearch-5.5.0',r'/TRS/APP/elasticsearch')
     print (TextColorGreen+'Elasticsearch压缩包解压完毕。')
 
-    subprocess.call("sed -i 's/#network\.host: 192\.168\.0\.1/network\.host: 0\.0\.0\.0/g' /TRS/APP/elastisearch/config/elasticsearch.yml",
+    subprocess.call("sed -i 's/#network\.host: 192\.168\.0\.1/network\.host: 0\.0\.0\.0/g' /TRS/APP/elasticsearch/config/elasticsearch.yml",
                     shell=True)
     
     print (TextColorGreen+'Elasticsearch解压完毕。'+TextColorWhite)
@@ -452,14 +452,14 @@ def installElasticsearch():
        FileObj.close()
 
 
-    subprocess.call("chown -R es:es /TRS/APP/elastisearch",shell=True) 
+    subprocess.call("chown -R es:es /TRS/APP/elasticsearch",shell=True) 
 
     print (TextColorGreen+'Elasticsearch 系统参数配置完毕.'+TextColorWhite)
 
 ####   添加分词器插件  ####
-    subprocess.call('mkdir -p /TRS/APP/elastisearch/plugins/ik',shell=True)
-    subprocess.call('tar -C /TRS/APP/elastisearch/plugins  -xvzf install_package/ik-ly.5.5.0.tar.gz',shell=True)
-    subprocess.call("chown -R es:es /TRS/APP/elastisearch",shell=True)
+    subprocess.call('mkdir -p /TRS/APP/elasticsearch/plugins/ik',shell=True)
+    subprocess.call('tar -C /TRS/APP/elasticsearch/plugins  -xvzf install_package/ik-ly.5.5.0.tar.gz',shell=True)
+    subprocess.call("chown -R es:es /TRS/APP/elasticsearch",shell=True)
     print (TextColorGreen+'elasticsearch分词器安装完毕!'+TextColorWhite)
 
 ####   配置分词器 ####
