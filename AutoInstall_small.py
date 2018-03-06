@@ -19,6 +19,7 @@ from commands import getoutput
 sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 from ESScript  import ESScript
 
+EnableLocalYum=False   ####是否开启本地YUM源开关，如果开启就跳过对Internet的检测  2018-02-26 新增   ####
 
 TextColorRed='\x1b[31m'
 TextColorGreen='\x1b[32m'
@@ -240,6 +241,11 @@ def installJava():
        
 
 def checkInternetConnection():
+    global EnableLocalYum
+    if EnableLocalYum:
+        print ('当前开启了本地YUM源，跳过对互联网的检测.')
+        return {'RetCode':0,
+                'Description':'当前开启了本地YUM源，跳过对Internet的检测'}
     pingResult,pingError=subprocess.Popen(['ping','61.139.2.69','-c 2','-W 1'],stdout=subprocess.PIPE,stderr=subprocess.PIPE).communicate()
     ReObj=re.search(r'(\d+)\s+received',pingResult)
     PacketRecived=int(ReObj.group(1))
@@ -301,7 +307,7 @@ def installImageMagick_yum():
       print (TextColorRed+InternetState['Description']+'\nImageMagick安装失败，程序退出！'+TextColorWhite)
       return 1
 
-   CmdInstallGCC=['yum','install','-y','gcc','gcc-c++']
+   CmdInstallGCC=['yum','install','-y','gcc','gcc-c++','openssl']
    CmdInstallDependency=['yum','install','-y',
                          'libjpeg','libjpeg-devel',
                          'libpng','libpng-devel',
@@ -607,6 +613,16 @@ def installRedis():
 
 def installRabbitmq():
    print (TextColorWhite+'安装Rabbitmq，请稍候...'+TextColorWhite)
+
+   ### 新增 对openssl的安装  Added at 2018-03-06 ###
+   InternetState=checkInternetConnection()
+   if InternetState['RetCode']!=0:
+      print (TextColorRed+InternetState['Description']+'\nImageMagick安装失败，程序退出！'+TextColorWhite)
+      return 1
+   subprocess.call('yum install openssl -y',shell=True)
+
+   
+
    if  subprocess.call('rpm -Uvh --force install_package/rpm_rabbitmq/erlang/*.rpm',shell=True):
       print (TextColorRed+'erlang 组件安装失败,无法安装Rabbitmq，程序退出！'+TextColorWhite)
       AppInstalledState['rabbitmq']='not ok'
@@ -625,6 +641,17 @@ def installRabbitmq():
     
 def __preInstall():
    __checkOSVersion()
+ 
+   global EnableLocalYum 
+
+   for index in range(len(sys.argv)):
+       if sys.argv[index]=='-localyum':
+          EnableLocalYum=True
+          print (TextColorGreen+'当前开启了本地YUM 开关'+TextColorWhite)
+          break  
+ 
+  
+
    try:
       LocalIP=extractLocalIP()
       ### 读取之前已经安装的介质信息，避免重复安装  ###
