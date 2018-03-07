@@ -34,7 +34,7 @@ CPUCores='1' if getoutput("lscpu|grep '^CPU(s)'|awk '{print $2}'")=='1' else get
 
 AppInstalledState={}   ###已经成功安装的软件名称会存放在这里###
 
-WikiURL='http://mrw.so/wlOH7'         #### WIKI 部署文档短地址   ##
+WikiURL='http://t.cn/REQVj8w'         #### WIKI 部署文档短地址   ##
 
 def checkRootPrivilege():
 ###  检查脚本的当前运行用户是否是 ROOT ###
@@ -470,29 +470,23 @@ def installElasticsearch():
 
 ####   配置分词器 ####
     print ('正在配置elasticsearch分词器，请稍候......')
-    while True:
+    subprocess.call('sysctl vm.max_map_count=655360;su - es -c /TRS/APP/elasticsearch/bin/elasticsearch &',shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+
+    print ('正在尝试启动elasticsearch，请稍候......')
+    isElasticRunning=False
+
+    for icount in range(5):
+         sleep(7)
          is9200Listening=checkPortState('127.0.0.1',9200)['RetCode']
          if is9200Listening==0:
             print (TextColorGreen+'Elasticsearch 正在监听9200端口。'+TextColorWhite)
+            isElasticRunning=True
             break
-         print (TextColorGreen+'####当前未检查到Elasticsearch 处于运行状态，请确认elasticsearch进程')
-         print ('####处于运行状态，并监听了9200端口。')
-         print ('####启动elasticsearch方法如下：')
-         print ('####  1、新建ssh连接;')
-         print ('####  2、切换至root账号，su - root回车')
-         print ('####  3、输入sysctl vm.max_map_count=655360回车')
-         print ('####  4、切换至es账号。su - es回车;')
-         print ('####  5、执行/TRS/APP/elasticsearch/bin/elasticsearch -d')
-         print ("####  6、输入  ps -ef|grep 'elastic' 查看elasticsearch 进程状态")
-         print ('####  启动elasticsearch完毕后，按Y键继续后续操作，按N键退出!'+TextColorWhite)
-         
-         key=raw_input('是否继续(Y(YES)/N(NO)):')
-         print ('')
-         key=key.strip().upper()
+         else:
+             sleep(5)
 
-         if (key=='Y' or key=='YES') or (key!='N' and key!='NO'):
-            sleep(5)
-            continue
+    if not isElasticRunning:
+         print (TextColorRed+'无法启动Elasticsearch'+TextColorWhite)
          print (TextColorRed+'配置elasticsearch 分词器失败，程序退出!'+TextColorWhite)
          AppInstalledState['elasticsearch']='not ok'
          exit(1)
@@ -602,12 +596,33 @@ def installRedis():
        print (TextColorRed+'Redis 安装失败，程序退出.'+TextColorGreen)
        AppInstalledState['redis']='not ok'
        exit(1)
-    print (TextColorGreen+'Redis 安装成功.'+TextColorWhite)
+#    print (TextColorGreen+'Redis 安装成功.'+TextColorWhite)
     AppInstalledState['redis']='ok'
 
-    print (TextColorGreen+'请访问如下地址完成redis 后续的配置操作\n'+WikiURL+'TextColorWhite')
 
-####### 配置 redis  待续   #####
+    ####### 配置 redis #####
+    with open(r'install_package/redis_conf/redis',mode='r') as f:
+       TmpFileContent=f.read()
+
+    with open(r'/etc/init.d/redis',mode='w') as f:
+       f.write(TmpFileContent)
+
+    subprocess.call('chmod 777 /etc/init.d/redis;systemctl daemon-reload',shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+    with open(r'install_package/redis_conf/redis.conf',mode='r') as f:
+        TmpFileContent=f.read()
+
+    TmpRedisPasswd=raw_input('请输入Redis密码，并按回车(直接回车将使用默认密码:trs@admin)：')
+    TmpRedisPasswd=TmpRedisPasswd.strip()
+    if len(TmpRedisPasswd)==0:
+       print (TextColorGreen+'未输入任何密码，使用默认密码'+TextColorWhite)
+    else:
+       TmpFileContent=re.sub(r'^(\s*requirepass)(.*?)\n',r'\g<1>  '+TmpRedisPasswd,TmpFileContent,flags=re.MULTILINE)
+
+    with open(r'/etc/redis.conf',mode='w') as f:
+       f.write(TmpFileContent)
+
+    print (TextColorGreen+'Redis 安装成功.'+TextColorWhite)
+       
 
 
 
