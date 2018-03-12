@@ -617,7 +617,7 @@ def installRedis():
     if len(TmpRedisPasswd)==0:
        print (TextColorGreen+'未输入任何密码，使用默认密码'+TextColorWhite)
     else:
-       TmpFileContent=re.sub(r'^(\s*requirepass)(.*?)\n',r'\g<1>  '+TmpRedisPasswd,TmpFileContent,flags=re.MULTILINE)
+       TmpFileContent=re.sub(r'^(\s*requirepass)(.*?)\n',r'\g<1>  '+TmpRedisPasswd+'\n\n',TmpFileContent,flags=re.MULTILINE)
 
     with open(r'/etc/redis.conf',mode='w') as f:
        f.write(TmpFileContent)
