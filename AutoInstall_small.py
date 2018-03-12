@@ -476,6 +476,7 @@ def installElasticsearch():
     isElasticRunning=False
 
     for icount in range(5):
+         print ('尝试次数:'+str(icount+1))
          sleep(7)
          is9200Listening=checkPortState('127.0.0.1',9200)['RetCode']
          if is9200Listening==0:
