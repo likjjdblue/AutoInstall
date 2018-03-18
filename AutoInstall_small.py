@@ -27,7 +27,8 @@ TextColorWhite='\x1b[0m'
 
 validAppNameList=['java','imagemagick','openoffice',
                  'elasticsearch','logstash','nginx',
-                 'redis','rabbitmq']
+                 'redis','rabbitmq','zabbixserver',
+                  'zabbixagent']
 
 
 CPUCores='1' if getoutput("lscpu|grep '^CPU(s)'|awk '{print $2}'")=='1' else getoutput("lscpu|grep '^CPU(s)'|awk '{print $2}'")
@@ -531,13 +532,13 @@ def installLogstash():
 def installNginx():
    print (TextColorWhite+'即将编译安装NGINX,请稍候....'+TextColorWhite)
    checkCompilerState()
-   subprocess.call('cd  install_package/source_nginx;tar -xvzf nginx-1.13.2.tar.gz',shell=True)
-   subprocess.call('cd  install_package/source_nginx;tar -xvzf openssl-1.0.2k.tar.gz',shell=True)
+   subprocess.call('cd  install_package/source_nginx;tar -xvzf nginx-1.13.9.tar.gz',shell=True)
+   subprocess.call('cd  install_package/source_nginx;tar -xvzf openssl-1.0.2n.tar.gz',shell=True)
    subprocess.call('cd  install_package/source_nginx;tar -xvzf pcre-8.41.tar.gz',shell=True)
    subprocess.call('cd  install_package/source_nginx;tar -xvzf zlib-1.2.11.tar.gz',shell=True)
 
-   cmdline='cd install_package/source_nginx/nginx-1.13.2;./configure  --with-pcre=../pcre-8.41 --with-zlib=../zlib-1.2.11 \
-             --with-openssl=../openssl-1.0.2k --with-stream --with-mail=dynamic \
+   cmdline='cd install_package/source_nginx/nginx-1.13.9;./configure  --with-pcre=../pcre-8.41 --with-zlib=../zlib-1.2.11 \
+             --with-openssl=../openssl-1.0.2n --with-stream --with-mail=dynamic \
              --prefix=/TRS/APP/nginx'
 
    if subprocess.call(cmdline,shell=True):
@@ -546,12 +547,12 @@ def installNginx():
       exit(1)
    print (TextColorGreen+'Nginx configure 成功'+TextColorWhite)
 
-   if subprocess.call('cd install_package/source_nginx/nginx-1.13.2;make -j %s'%(CPUCores,),shell=True):
+   if subprocess.call('cd install_package/source_nginx/nginx-1.13.9;make -j %s'%(CPUCores,),shell=True):
       print (TextColorRed+'Nginx make 失败，程序退出。'+TextColorWhite)
       AppInstalledState['nginx']='not ok'
       exit(1)
 
-   if subprocess.call('cd install_package/source_nginx/nginx-1.13.2;make install',shell=True):
+   if subprocess.call('cd install_package/source_nginx/nginx-1.13.9;make install',shell=True):
       print (TextColorRed+'Nginx 安装 失败，程序退出。'+TextColorWhite)
       AppInstalledState['nginx']='not ok'
       exit(1)
@@ -654,6 +655,97 @@ def installRabbitmq():
    print (TextColorGreen+'请访问如下地址，完成Rabbitmq 后续的配置操作\n'+WikiURL+TextColorWhite)
 
 #### 配置Rabbitmq 待续 #####
+
+
+
+def  installZabbixServer():
+    print (TextColorWhite+'即将安装 Zabbix Server 请稍后.....'+TextColorWhite)
+    if EnableLocalYum==True:
+        ####  使用本地YUM 进行安装  ###
+        print (TextColorWhite+'当前开启了本地YUM开关，跳过对互联网的检测.'+TextColorWhite)
+    else:
+        #### 通过互联网安装  zabbix server   ####
+        InternetState=checkInternetConnection()
+        if InternetState['RetCode']!=0:
+            print (TextColorRed+InternetState['Description']+' 安装Zabbix Server失败，程序退出.'+TextColorWhite)
+            exit(1)
+        if subprocess.call('rpm -Uvh --force install_package/zabbix_archive/zabbix-release-3.4-2.el7.noarch.rpm',
+                        shell=True):
+            print (TextColorRed+'添加zabbix仓库失败，程序退出.'+TextColorWhite)
+            exit(1)
+
+    if subprocess.call('yum install zabbix-server-mysql -y',shell=True):
+        print (TextColorRed+'安装 zabbix server 失败，程序退出.'+TextColorWhite)
+        exit(1)
+    if subprocess.call('yum install zabbix-web-mysql -y',shell=True):
+        print (TextColorRed+'安装zabbix 前端程序失败，程序退出.'+TextColorWhite)
+        exit(1)
+
+    subprocess.call('yum install gnutls -y',shell=True)
+    subprocess.call('firewall-cmd --zone=public --add-port=10051/tcp --permanent',shell=True)
+    subprocess.call('firewall-cmd --zone=public --add-port=80/tcp --permanent',shell=True)
+    subprocess.call('firewall-cmd --reload',shell=True)
+
+    #### 修改php 相关配置   ###
+    with open(r'install_package/zabbix_archive/zabbix.conf',mode='r') as f:
+        TmpFileContent=f.read()
+
+    with open(r'/etc/httpd/conf.d/zabbix.conf',mode='w') as f:
+        f.write(TmpFileContent)
+
+    subprocess.call('setsebool -P httpd_can_connect_zabbix on',shell=True)
+    subprocess.call('setsebool -P httpd_can_network_connect_db on',shell=True)
+    AppInstalledState['zabbixserver']='ok'
+    print (TextColorGreen+'Zabbix Server安装完毕!'+TextColorWhite)
+    print (TextColorGreen+'请阅读WIKI,手动完成Mysql的初始化，及配置。'+TextColorWhite)
+    print (TextColorGreen+'WIKI访问地址：'+WikiURL+TextColorWhite)
+
+
+def installZabbixAgent():
+    print (TextColorWhite+'即将安装 Zabbix Agent 请稍后.....'+TextColorWhite)
+    if EnableLocalYum==True:
+        ####  使用本地YUM 进行安装  ###
+        print (TextColorWhite+'当前开启了本地YUM开关，跳过对互联网的检测.'+TextColorWhite)
+    else:
+        #### 通过互联网安装  zabbix agent   ####
+        InternetState=checkInternetConnection()
+        if InternetState['RetCode']!=0:
+            print (TextColorRed+InternetState['Description']+' 安装Zabbix agent失败，程序退出.'+TextColorWhite)
+            exit(1)
+        if subprocess.call('rpm -Uvh --force install_package/zabbix_archive/zabbix-release-3.4-2.el7.noarch.rpm',
+                        shell=True):
+            print (TextColorRed+'添加zabbix仓库失败，程序退出.'+TextColorWhite)
+            exit(1)
+
+    if subprocess.call('yum install zabbix-agent -y ',shell=True):
+        print (TextColorRed+'安装zabbix agent失败，程序退出.'+TextColorWhite)
+        exit(1)
+
+    ### 覆盖默认 zabbix_agentd.conf   ####
+    with open(r'install_package/zabbix_archive/zabbix_agentd.conf',mode='r') as f:
+        TmpFileContent=f.read()
+    with open(r'/etc/zabbix/zabbix_agentd.conf',mode='w') as f:
+        f.write(TmpFileContent)
+
+    ### 其他配置    ####
+    subprocess.call('/usr/bin/cp -f install_package/zabbix_archive/chk_mysql.sh /usr/local/bin/',shell=True)
+    subprocess.call('/usr/bin/cp -f install_package/zabbix_archive/tcprstat /usr/bin/',shell=True)
+    subprocess.call('chmod 777 /usr/local/bin/chk_mysql.sh',shell=True)
+    subprocess.call('chmod 777 /usr/bin/tcprstat',shell=True)
+    subprocess.call('echo "zabbix ALL = NOPASSWD: ALL">>/etc/sudoers',shell=True)
+
+    subprocess.call('firewall-cmd --zone=public --add-port=10050/tcp --permanent',shell=True)
+    subprocess.call('firewall-cmd --zone=public --add-port=10050/udp --permanent',shell=True)
+    subprocess.call('firewall-cmd --reload',shell=True)
+    subprocess.call('yum install sysstat net-tools -y ',shell=True)
+
+    AppInstalledState['zabbixagent']='ok'
+    print (TextColorGreen+'Zabbix agent 安装完毕.'+TextColorWhite)
+    print (TextColorGreen+'请阅读WIKI,手动完成其他的配置,WIKI 地址：'+WikiURL+TextColorWhite)
+
+
+
+
     
 def __preInstall():
    __checkOSVersion()
@@ -665,8 +757,7 @@ def __preInstall():
           EnableLocalYum=True
           print (TextColorGreen+'当前开启了本地YUM 开关'+TextColorWhite)
           break  
- 
-  
+
 
    try:
       LocalIP=extractLocalIP()
@@ -723,6 +814,8 @@ def RunMenu():
           print ('           6、安装 Nginx;')
           print ('           7、安装 redis;')
           print ('           8、安装 Rabbitmq;')
+          print ('           9、安装 Zabbix Server;')
+          print ('           10、安装 Zabbix Agent;')
           print ('           0、退出安装;'+TextColorWhite)
           
           choice=raw_input('请输入数值序号:')
@@ -768,6 +861,16 @@ def RunMenu():
                 print (TextColorGreen+'Rabbitmq 已经安装，无需重复安装'+TextColorWhite)
                 continue
              installRabbitmq()
+          elif choice=='9':
+              if ('zabbixserver' in AppInstalledState) and (AppInstalledState['zabbixserver']=='ok'):
+                  print (TextColorGreen+'Zabbix server已经安装，无需重复安装'+TextColorWhite)
+                  continue
+              installZabbixServer()
+          elif choice=='10':
+              if ('zabbixagent' in AppInstalledState) and (AppInstalledState['zabbixagent']=='ok'):
+                  print (TextColorGreen+'Zabbix agent已经安装，无需重复安装'+TextColorWhite)
+                  continue
+              installZabbixAgent()
           elif  choice=='0':
              exit(0)
     except:
