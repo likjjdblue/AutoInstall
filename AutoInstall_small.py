@@ -15,6 +15,7 @@ import httplib
 import json
 import socket
 import sys
+from collections import defaultdict
 from commands import getoutput
 sys.path.append(path.dirname(path.dirname(path.abspath(__file__))))
 from ESScript  import ESScript
@@ -751,6 +752,7 @@ def installZabbixAgent():
 
 
 def checkMysqlVariables():
+    ###   检查MYSQL  字符集 最大并发连接数  大小写忽略 参数的配置情况 ####
     try:
         host=raw_input('输入MYSQL IP(默认127.0.0.1):')
         host=host.strip()
@@ -817,7 +819,102 @@ def checkMysqlVariables():
 
 
 
-    
+def checkZabbixServerConfiguration():
+    ###  检查zabbix  server 配置文件，并进行数据库的连接测试 ###
+    TargetArgumentsList=['DBHost','DBName',       ##需要检查的重要配置项   ###
+                         'DBUser','DBPassword']
+    print ('即将对zabbix server配置文件进行自检，请稍候.......')
+    if not path.isfile(r'/etc/zabbix/zabbix_server.conf'):
+        print (TextColorRed+'无法找到 /etc/zabbix/zabbix_server.conf 配置文件，无法自检!'+TextColorWhite)
+        return 1
+    with open(r'/etc/zabbix/zabbix_server.conf',mode='r') as f:
+        TmpFileContent=f.read()
+    TmpArgumentsDict=defaultdict(list)
+
+    for item in re.findall(r'^\s*([^#]*?)\s*=(.*?)\n',TmpFileContent,flags=re.MULTILINE):
+        TmpKey,TmpValue=item[0].strip(),item[1].strip()
+        TmpArgumentsDict[TmpKey].append(TmpValue)
+    print (TextColorWhite+'读取配置文件完毕,开始解析.......'+TextColorWhite)
+
+    for key in TmpArgumentsDict:     ##   检查是否有语法错误的配置项   ###
+        if '' in TmpArgumentsDict[key]:
+            print (TextColorRed+'异常配置项：'+key+TextColorWhite)
+
+    for key in TmpArgumentsDict:     ## 检查是否有重复配置项   ###
+        if len(TmpArgumentsDict[key])>1:
+            print (TextColorRed+'检查到冗余的配置项:'+key+TextColorWhite)
+
+    TmpFlagAllowDBTest=True   ##  如果关键配置项完整，就进行数据库测试    ###
+    for argument in TargetArgumentsList:
+        if argument not in TmpArgumentsDict:
+            print (TextColorRed+'关键配置参数缺失:'+argument+TextColorWhite)
+            TmpFlagAllowDBTest=False
+    print (TextColorWhite+'配置文件解析完毕'+TextColorWhite)
+
+    if not TmpFlagAllowDBTest:
+        print ('由于MYSQL 配置项异常，无法进行数据库测试，检测完毕.')
+        return 1
+
+    print ('即将进行数据库连接测试，请稍候.....')
+    if 'DBPort' not in TmpArgumentsDict:
+        TmpArgumentsDict['DBPort'].append('3306')
+
+    print ('Zabbix Mysql IP:'+TmpArgumentsDict['DBHost'][0].strip())
+    print ('Zabbix Mysql 端口：'+TmpArgumentsDict['DBPort'][0].strip())
+    print ('Zabbix Mysql 用户：'+TmpArgumentsDict['DBUser'][0].strip())
+    print ('Zabbix Mysql 密码：'+TmpArgumentsDict['DBPassword'][0].strip())
+    print ('Zabbix Mysql  DB：'+TmpArgumentsDict['DBName'][0].strip())
+    print ('')
+
+    try:
+        import mysql.connector
+        ConnObj=mysql.connector.connect(host=TmpArgumentsDict['DBHost'][0].strip(),
+                                        port=TmpArgumentsDict['DBPort'][0].strip(),
+                                        user=TmpArgumentsDict['DBUser'][0].strip(),
+                                        password=TmpArgumentsDict['DBPassword'][0].strip(),
+                                        connection_timeout=3)
+        CursorObj=ConnObj.cursor()
+        CursorObj.execute('use %s;'%(TmpArgumentsDict['DBName'][0].strip(),))
+        print (TextColorGreen+'MYSQL 数据库测试正常.\n'+TextColorWhite)
+    except Exception as e:
+        print (TextColorRed+'MYSQL 数据库测试异常，请检查配置.\n'+TextColorWhite)
+        print (TextColorRed+str(e)+TextColorWhite)
+
+
+def checkZabbixAgentConfiguration():
+    ### 检查zabbix agent 配置文件 ###
+    TargetArgumentsList=['Server','ServerActive','Hostname']
+    print ('即将对zabbix agent配置文件进行测试，请稍候.....')
+    if not path.isfile(r'/etc/zabbix/zabbix_agentd.conf'):
+        print (TextColorRed+'无法读取 /etc/zabbix/zabbix_agentd.conf 配置文件，无法自检.'+TextColorWhite)
+        return 1
+
+    with open(r'/etc/zabbix/zabbix_agentd.conf',mode='r') as f:
+        TmpFileContent=f.read()
+
+    TmpArgumentsDict=defaultdict(list)
+
+    for item in re.findall(r'^\s*([^#]*?)\s*=(.*?)\n',TmpFileContent,flags=re.MULTILINE):
+        TmpKey,TmpValue=item[0].strip(),item[1].strip()
+        TmpArgumentsDict[TmpKey].append(TmpValue)
+    print (TextColorWhite+'读取配置文件完毕,开始解析.......'+TextColorWhite)
+
+    for key in TmpArgumentsDict:     ##   检查是否有语法错误的配置项   ###
+        if '' in TmpArgumentsDict[key]:
+            print (TextColorRed+'异常配置项：'+key+TextColorWhite)
+
+    for key in TmpArgumentsDict:     ## 检查是否有重复配置项   ###
+        if len(TmpArgumentsDict[key])>1:
+            print (TextColorRed+'检查到冗余的配置项:'+key+TextColorWhite)
+
+    for argument in TargetArgumentsList:     ## 检查配置项是否有缺失  ###
+        if argument not in TmpArgumentsDict:
+            print (TextColorRed+'关键配置项缺失：'+argument+TextColorWhite)
+
+    print ('配置文件解析完毕')
+
+
+
 def __preInstall():
    __checkOSVersion()
    __installMysqlDriver4Python()
@@ -889,6 +986,8 @@ def RunMenu():
           print ('           9、安装 Zabbix Server;')
           print ('           10、安装 Zabbix Agent;')
           print ('           11、检测MYSQL 参数配置;')
+          print ('           12、 检测Zabbix Server配置文件；')
+          print ('           13、 检测Zabbix  Agent配置文件；')
           print ('           0、退出安装;'+TextColorWhite)
           
           choice=raw_input('请输入数值序号:')
@@ -946,6 +1045,10 @@ def RunMenu():
               installZabbixAgent()
           elif choice=='11':
               checkMysqlVariables()
+          elif choice=='12':
+              checkZabbixServerConfiguration()
+          elif choice=='13':
+              checkZabbixAgentConfiguration()
           elif  choice=='0':
              exit(0)
     except:
@@ -954,20 +1057,6 @@ def RunMenu():
           __postInstall()
              
       
-    
-
-#configureServerArgument()
-#installJava()
-#installImageMagick_yum()
-#installOpenOffice()
-#installElasticsearch()
-#installLogstash()
-#installNginx()
-#installRedis()
-#installRabbitmq()
-#installImageMagick_yum()
-#checkCompilerState()
-
 
 
 if __name__=='__main__':
