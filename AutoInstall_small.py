@@ -99,7 +99,13 @@ def __checkOSVersion():
     print (TextColorRed+'无法获取操作系统版本信息，或者版本不符合要求(需要CentOS7)'+'\n程序退出!'+TextColorWhite)
     exit(1)
     
-
+def __installMysqlDriver4Python():
+    try:
+        import mysql.connector
+    except:
+        subprocess.call('rpm -Uvh --force install_package/mysql-connector-python-2.1.7-1.el7.x86_64.rpm',
+                        shell=True)
+        import mysql.connector
           
 
 def configureServerArgument():
@@ -744,11 +750,77 @@ def installZabbixAgent():
     print (TextColorGreen+'请阅读WIKI,手动完成其他的配置,WIKI 地址：'+WikiURL+TextColorWhite)
 
 
+def checkMysqlVariables():
+    try:
+        host=raw_input('输入MYSQL IP(默认127.0.0.1):')
+        host=host.strip()
+        if len(host)==0:
+            host='127.0.0.1'
+
+        port=raw_input('输入MYSQL 端口（默认 3306）：')
+        port=port.strip()
+        if len(port)==0:
+            port='3306'
+
+        while True:
+            user=raw_input('请输入MYSQL 连接用户名(不能为空)：')
+            user=user.strip()
+            if len(user)==0:
+                continue
+            else:
+                break
+
+        password=raw_input('请输入MYSQL 连接密码：')
+        password=password.strip()
+    except:
+        return 1
+
+
+    try:
+        import mysql.connector
+        ConnObj=mysql.connector.connect(host=host,port=port,user=user,password=password,connection_timeout=3)
+    except Exception as e:
+        print (TextColorRed+'连接Mysql 数据库失败，无法检查参数.'+TextColorWhite)
+        print (TextColorRed+str(e)+TextColorWhite)
+        return 1
+    CursorObj=ConnObj.cursor()
+
+    ### 检查character set 是否是UTF-8   ##
+    CursorObj.execute("show variables like '%character_set%';")
+    print ('########  字符集检查结果: #########')
+    for item in CursorObj:
+        if item[0]==u'character_set_filesystem' or item[0]==u'character_sets_dir':
+            continue
+        else:
+            if item[1]!=u'utf8':
+                print (TextColorRed+item[0]+' : '+item[1]+u' 异常'+TextColorWhite)
+                continue
+            print (TextColorGreen+item[0]+' : '+item[1]+u' 正确'+TextColorWhite)
+    print ('########  END #########\n')
+
+    ####  检查忽略大小写 ####
+    CursorObj.execute("show variables like '%lower_case_table_names%';")
+    TmpResult=CursorObj.fetchone()
+    if TmpResult[1]==u'1':
+        print (TextColorWhite+'Mysql大小写敏感配置： 正确'+TextColorWhite)
+    else:
+        print (TextColorRed+'Mysql大小写敏感配置： 异常'+TextColorWhite)
+
+    ###   最大连接数   ###
+    CursorObj.execute("show variables like '%max_connections%';")
+    TmpResult=int(CursorObj.fetchone()[1])
+
+    if TmpResult<1000:
+        print (TextColorRed+'Mysql 最大连接数配置：  异常'+TextColorWhite)
+    else:
+        print (TextColorGreen+'Mysql 最大连接数配置:  正确'+TextColorWhite)
+
 
 
     
 def __preInstall():
    __checkOSVersion()
+   __installMysqlDriver4Python()
  
    global EnableLocalYum 
 
@@ -816,6 +888,7 @@ def RunMenu():
           print ('           8、安装 Rabbitmq;')
           print ('           9、安装 Zabbix Server;')
           print ('           10、安装 Zabbix Agent;')
+          print ('           11、检测MYSQL 参数配置;')
           print ('           0、退出安装;'+TextColorWhite)
           
           choice=raw_input('请输入数值序号:')
@@ -871,6 +944,8 @@ def RunMenu():
                   print (TextColorGreen+'Zabbix agent已经安装，无需重复安装'+TextColorWhite)
                   continue
               installZabbixAgent()
+          elif choice=='11':
+              checkMysqlVariables()
           elif  choice=='0':
              exit(0)
     except:
