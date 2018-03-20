@@ -29,7 +29,7 @@ TextColorWhite='\x1b[0m'
 validAppNameList=['java','imagemagick','openoffice',
                  'elasticsearch','logstash','nginx',
                  'redis','rabbitmq','zabbixserver',
-                  'zabbixagent']
+                  'zabbixagent','mariadb']
 
 
 CPUCores='1' if getoutput("lscpu|grep '^CPU(s)'|awk '{print $2}'")=='1' else getoutput("lscpu|grep '^CPU(s)'|awk '{print $2}'")
@@ -483,7 +483,7 @@ def installElasticsearch():
     print ('正在尝试启动elasticsearch，请稍候......')
     isElasticRunning=False
 
-    for icount in range(5):
+    for icount in range(7):
          print ('尝试次数:'+str(icount+1))
          sleep(7)
          is9200Listening=checkPortState('127.0.0.1',9200)['RetCode']
@@ -914,6 +914,60 @@ def checkZabbixAgentConfiguration():
     print ('配置文件解析完毕')
 
 
+def installMariadb():
+    ### 通过YUM 方式安装 mariadb ###
+    global EnableLocalYum
+    print ('安装说明：')
+    print ('1、安装过程将通过YUM 方式从官方仓库进行安装，如果不希望采用该方式请终止本程序；')
+    print ('2、本程序只进行基本安装，请按照WIKI要求及实际需求自行对mariadb进行必要的配置；')
+    print ('    配置项包括但不仅限于字符集，最大连接数，大小写敏感，以及必要的安全配置，数据存放路径。')
+    print ('3、安装完毕后将使用/etc/my.cnf 配置文件；')
+
+    while True:
+        isContinue=raw_input("是否继续(Yes/No):")
+        isContinue=isContinue.strip().lower()
+
+        if isContinue=='yes' or isContinue=='y':
+            break
+        elif isContinue=='no' or isContinue=='n':
+            return 1
+    print ('即将安装Mariadb,请稍候......')
+
+    if EnableLocalYum==True:
+        print (TextColorRed+'检测到当前开启了本地YUM 开关，当前不支持本地安装方式，无法继续.'+TextColorWhite)
+        return 1
+
+    InternetState=checkInternetConnection()
+    if InternetState['RetCode']!=0:
+        print (TextColorRed+InternetState['Description']+' 安装Mariadb 失败，程序退出.'+TextColorWhite)
+        exit(1)
+    with open(r'install_package/mariadb_conf/MariaDB.repo',mode='r') as f:
+        TmpFileContent=f.read()
+    with open(r'/etc/yum.repos.d/MariaDB.repo',mode='w') as f:
+        f.write(TmpFileContent)
+
+    if subprocess.call('yum install MariaDB-server MariaDB-client -y',shell=True):
+        print (TextColorRed+'安装Mariadb失败，程序退出.'+TextColorGreen)
+        exit(1)
+    print ('安装完毕，进行初始化....')
+
+    try:
+        if not path.isfile(r'/etc/my.cnf.backup'):
+            subprocess.call('cp /etc/my.cnf /etc/my.cnf.backup',shell=True)
+    except:
+        pass
+
+    with open(r'install_package/mariadb_conf/my.cnf',mode='r') as f:
+        TmpFileContent=f.read()
+    with open(r'/etc/my.cnf',mode='w') as f:
+        f.write(TmpFileContent)
+
+    print (TextColorGreen+'已经成功安装Mariadb'+TextColorWhite)
+    print ('请手动对mariadb进行必要的配置，配置内容包括：为root账号设置密码、指定数据的存放目录等.')
+    AppInstalledState['mariadb']='ok'
+
+
+
 
 def __preInstall():
    __checkOSVersion()
@@ -985,9 +1039,10 @@ def RunMenu():
           print ('           8、安装 Rabbitmq;')
           print ('           9、安装 Zabbix Server;')
           print ('           10、安装 Zabbix Agent;')
-          print ('           11、检测MYSQL 参数配置;')
+          print ('           11、检测MariaDB 参数配置;')
           print ('           12、 检测Zabbix Server配置文件；')
           print ('           13、 检测Zabbix  Agent配置文件；')
+          print ('           14、 安装MariaDB（YUM 安装）;')
           print ('           0、退出安装;'+TextColorWhite)
           
           choice=raw_input('请输入数值序号:')
@@ -1049,14 +1104,18 @@ def RunMenu():
               checkZabbixServerConfiguration()
           elif choice=='13':
               checkZabbixAgentConfiguration()
+          elif choice=='14':
+              if ('mariadb' in AppInstalledState) and (AppInstalledState['mariadb']=='ok'):
+                  print (TextColorGreen+'Mariadb 已经安装，无需重复安装'+TextColorWhite)
+                  continue
+              installMariadb()
           elif  choice=='0':
              exit(0)
-    except:
-          pass
+    except Exception as e:
+          print (str(e))
     finally:
           __postInstall()
              
-      
 
 
 if __name__=='__main__':
