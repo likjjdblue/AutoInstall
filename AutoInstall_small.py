@@ -352,7 +352,7 @@ def installImageMagick_yum():
        exit(1)
    
    if not path.exists(r'/etc/profile.backup'):
-      subprocess.call('cp /etc/profile /etc/profile.backup')
+      subprocess.call('cp /etc/profile /etc/profile.backup',shell=True)
 
    FileContent=open(r'/etc/profile',mode='rb').read()
 
