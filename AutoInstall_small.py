@@ -809,7 +809,7 @@ def checkMysqlVariables():
         print (TextColorRed+'Mysql大小写敏感配置： 异常'+TextColorWhite)
 
     ###   最大连接数   ###
-    CursorObj.execute("show variables like '%max_connections%';")
+    CursorObj.execute("show variables like 'max_connections';")
     TmpResult=int(CursorObj.fetchone()[1])
 
     if TmpResult<1000:
